@@ -154,10 +154,11 @@ def generate_enhanced_synthetic_datasets():
     dealer_data.to_csv('government_dealers.csv', index=False)
     dealer_farmer_data.to_csv('dealer_farmer_relationships.csv', index=False)
     
-    print("✅ Datasets generated with ACRES + CROP-SPECIFIC FERTILISER + DEFECTIVE QTY!")
-    print(f"   📊 Farmers: {len(farmer_data):,} | 🏪 Dealers: {len(dealer_data):,} | 🤝 Relationships: {len(dealer_farmer_data):,}")
+    print("Datasets generated with ACRES + CROP-SPECIFIC FERTILISER + DEFECTIVE QTY!")
+    print(f"   Farmers: {len(farmer_data):,} | Dealers: {len(dealer_data):,} | Relationships: {len(dealer_farmer_data):,}")
     
     return farmer_data, dealer_data, dealer_farmer_data
 
 if __name__ == "__main__":
     farmer_data, dealer_data, dealer_farmer_data = generate_enhanced_synthetic_datasets()
+
