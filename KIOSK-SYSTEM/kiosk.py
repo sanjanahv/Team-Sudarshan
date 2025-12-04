@@ -1,132 +1,56 @@
+# app.py
+
 import streamlit as st
-import pandas as pd
-from datetime import datetime
+from risk_engine import evaluate_risk
 
 st.set_page_config(page_title="Farmer Kiosk", layout="centered")
 
-st.title("🌾 Farmer Verification Kiosk")
+st.title("🌾 Farmer Verification & Risk Kiosk")
 st.markdown("---")
 
-# Session State
-if "df" not in st.session_state:
-    st.session_state.df = None
+st.subheader("🔍 Enter Farmer & Dealer Details")
 
-# ------------------------- FILE UPLOAD -------------------------
-st.subheader("📁 Upload Farmer Database")
+with st.form("verify_form"):
+    farmer_id_input = st.text_input("Farmer ID*", placeholder="Enter exact farmer ID")
+    dealer_id_input = st.text_input("Dealer ID*", placeholder="Enter dealer ID")
+    village_input = st.text_input("Village*", placeholder="Enter village name")
+    crop_input = st.text_input("Crop Type*", placeholder="Enter crop name (e.g. Rice)")
+    land_input = st.number_input("Land Size (acres)", min_value=0.0, value=1.0, step=0.1)
 
-uploaded_file = st.file_uploader(
-    "Upload CSV or Excel file",
-    type=["csv", "xlsx"]
-)
+    submitted = st.form_submit_button("Evaluate Risk")
 
-if uploaded_file:
-    try:
-        if uploaded_file.name.endswith(".csv"):
-            df = pd.read_csv(uploaded_file)
-        else:
-            df = pd.read_excel(uploaded_file)
+if submitted:
+    fid = farmer_id_input.strip()
+    did = dealer_id_input.strip()
+    vil = village_input.strip()
+    cr = crop_input.strip()
 
-        st.session_state.df = df
-        st.success(f"Loaded {len(df):,} records.")
+    if fid == "" or did == "" or vil == "" or cr == "":
+        st.error("Please fill all required fields.")
+    else:
+        # Build input packet for backend
+        input_farmer = {
+            "farmer_id": fid,
+            "Dealer_ID": did,
+            "village": vil,
+            "land_size": land_input,
+            "Crop": cr.capitalize()  # match "Rice", "Wheat", etc.
+        }
 
-        with st.expander("📊 Preview (first 5 rows)"):
-            st.dataframe(df.head())
+        result = evaluate_risk(input_farmer)
 
-    except Exception as e:
-        st.error("❌ Unable to read file: " + str(e))
+        st.markdown("---")
+        st.subheader("🧠 Risk Evaluation Result")
 
-# ------------------------- VERIFICATION FORM -------------------------
-if st.session_state.df is not None:
-    df = st.session_state.df
+        st.metric("Decision", result["Decision"])
+        st.metric("Risk Score", result["Risk_Score"])
 
-    st.markdown("---")
-    st.subheader("🔍 Verify Farmer")
+        if result.get("Expected_Fertilizer_kg") is not None:
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Expected Fertilizer (kg)", result["Expected_Fertilizer_kg"])
+            with col2:
+                st.metric("Claimed Fertilizer (kg)", result["Claimed_Fertilizer_kg"])
 
-    st.info(f"Available Columns: {', '.join(df.columns.tolist())}")
-
-    # Column mapping
-    with st.expander("⚙️ Column Mapping"):
-        farmer_id_col = st.selectbox("Farmer ID Column", df.columns.tolist())
-        village_col = st.selectbox("Village Column", df.columns.tolist())
-        crop_col = st.selectbox("Crop Column", df.columns.tolist())
-        dealer_id_col = st.selectbox("Dealer ID Column", df.columns.tolist())  # REQUIRED field
-
-    # ---------------- FORM ----------------
-    with st.form("verify_form"):
-        col1, col2 = st.columns(2)
-        with col1:
-            farmer_id_input = st.text_input("Farmer ID*", placeholder="Enter exact ID")
-        with col2:
-            dealer_id_input = st.text_input("Dealer ID*", placeholder="Enter dealer ID")
-        
-        col3, col4 = st.columns(2)
-        with col3:
-            village_input = st.text_input("Village*", placeholder="Enter village name")
-        with col4:
-            crop_input = st.text_input("Crop Type*", placeholder="Enter crop name")
-
-        land_input = st.number_input("Land Size", min_value=0.0, value=1.0, step=0.1)
-
-        submitted = st.form_submit_button("Check Verification")
-
-    if submitted:
-        # Clean input
-        fid = farmer_id_input.strip()
-        dealer_id = dealer_id_input.strip()  # REQUIRED field
-        vil = village_input.strip().lower()
-        cr = crop_input.strip().lower()
-
-        if fid == "" or dealer_id == "" or vil == "" or cr == "":
-            st.error("Please fill all required fields (Farmer ID, Dealer ID, Village, and Crop).")
-            st.stop()
-
-        # ---------------- SEARCH LOGIC ----------------
-        df["fid_clean"] = df[farmer_id_col].astype(str).str.strip()
-        df["dealer_clean"] = df[dealer_id_col].astype(str).str.strip()  # REQUIRED field
-        df["vil_clean"] = df[village_col].astype(str).str.strip().str.lower()
-        df["crop_clean"] = df[crop_col].astype(str).str.strip().str.lower()
-
-        # Find ID
-        id_match = df[df["fid_clean"] == fid]
-
-        if id_match.empty:
-            st.error("❌ THREAT: Farmer ID not found in database.")
-        else:
-            row = id_match.iloc[0]
-
-            village_match = (row["vil_clean"] == vil)
-            crop_match = (row["crop_clean"] == cr)
-            dealer_match = (row["dealer_clean"] == dealer_id)  # REQUIRED verification
-
-            # All fields must match including dealer ID
-            if village_match and crop_match and dealer_match:
-                st.success("✅ SUCCESSFUL — Exact Match Verified!")
-                
-                # Display verification summary
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.metric("Farmer ID", row[farmer_id_col])
-                    st.metric("Village", row[village_col])
-                with col2:
-                    st.metric("Dealer ID", row[dealer_id_col])
-                    st.metric("Crop", row[crop_col])
-
-                with st.expander("Verified Record"):
-                    st.write(row)
-
-            else:
-                st.error("🚨 THREAT — Farmer found but details do NOT match.")
-                
-                # Show specific mismatches
-                mismatch_count = 0
-                if not village_match:
-                    st.warning(f"Village mismatch: '{row[village_col]}'")
-                    mismatch_count += 1
-                if not crop_match:
-                    st.warning(f"Crop mismatch: '{row[crop_col]}'")
-                    mismatch_count += 1
-                if not dealer_match:
-                    st.warning(f"Dealer ID mismatch: '{row[dealer_id_col]}'")
-                    mismatch_count += 1
-                
-                st.info(f"Total mismatches: {mismatch_count}/3 fields")
+        st.markdown("### 📝 Reasons")
+        st.write(result["Reasons"] or "No specific issues detected.")
