@@ -95,11 +95,24 @@ def generate_enhanced_synthetic_datasets():
     core_size = 19000
     
     dealer_farmer_ids = np.random.choice(farmer_data['farmer_id'], core_size)
-    dealer_ids = np.random.choice(dealer_data['dealer_id'], core_size)
+    dealer_ids = []
+    
+    for i, farmer_id in enumerate(dealer_farmer_ids):
+        farmer_row = farmer_data[farmer_data['farmer_id'] == farmer_id].iloc[0]
+        farmer_village = farmer_row['village']
+        
+        same_village_dealers = dealer_data[dealer_data['village'] == farmer_village]['dealer_id'].values
+        
+        if len(same_village_dealers) > 0 and np.random.random() < 0.85:
+            dealer_ids.append(np.random.choice(same_village_dealers))
+        else:
+            dealer_ids.append(np.random.choice(dealer_data['dealer_id']))
+    
+    dealer_ids = np.array(dealer_ids)
     
     realistic_qty = []
     defective_qty = []
-    for farmer_id in dealer_farmer_ids:
+    for i, farmer_id in enumerate(dealer_farmer_ids):
         row = farmer_data[farmer_data['farmer_id'] == farmer_id].iloc[0]
         land_acres = row['land_size_acres']
         kharif_crop = row['kharif_crop']
@@ -108,8 +121,6 @@ def generate_enhanced_synthetic_datasets():
             base_qty = land_acres * np.random.uniform(900, 1100)
         else:
             base_qty = land_acres * np.random.uniform(400, 600)
-        
-        realistic_qty.append(round(base_qty))
         
         if np.random.random() < 0.05:
             defective_qty.append(round(base_qty * np.random.uniform(3, 10)))
@@ -154,11 +165,18 @@ def generate_enhanced_synthetic_datasets():
     dealer_data.to_csv('government_dealers.csv', index=False)
     dealer_farmer_data.to_csv('dealer_farmer_relationships.csv', index=False)
     
-    print("Datasets generated with ACRES + CROP-SPECIFIC FERTILISER + DEFECTIVE QTY!")
-    print(f"   Farmers: {len(farmer_data):,} | Dealers: {len(dealer_data):,} | Relationships: {len(dealer_farmer_data):,}")
+    same_village_count = 0
+    for i in range(core_size):
+        farmer_row = farmer_data[farmer_data['farmer_id'] == dealer_farmer_ids[i]].iloc[0]
+        dealer_row = dealer_data[dealer_data['dealer_id'] == dealer_ids[i]].iloc[0]
+        if farmer_row['village'] == dealer_row['village']:
+            same_village_count += 1
+    
+    print("✅ Datasets generated with LOCAL DEALER PREFERENCE!")
+    print(f"   📊 Farmers: {len(farmer_data):,} | 🏪 Dealers: {len(dealer_data):,} | 🤝 Relationships: {len(dealer_farmer_data):,}")
+    print(f"   🏘️ Same village pairs: {same_village_count}/{core_size} ({same_village_count/core_size*100:.1f}%)")
     
     return farmer_data, dealer_data, dealer_farmer_data
 
 if __name__ == "__main__":
     farmer_data, dealer_data, dealer_farmer_data = generate_enhanced_synthetic_datasets()
-
