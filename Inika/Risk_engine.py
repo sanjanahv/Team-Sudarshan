@@ -1,10 +1,11 @@
-import pandas as pd
+# risk_engine.py
 
-CROPS = ["Rice", "Jowar", "Wheat", "Oats"] # Supported crops
+import pandas as pd 
 
-SOILS = ["Alluvial", "Clay", "Loamy", "Red", "Black (Regur)", "Sandy Loam"] # Supported soils
+CROPS = ["Rice", "Jowar", "Wheat", "Oats"]  # Supported crops
+SOILS = ["Alluvial", "Clay", "Loamy", "Red", "Black (Regur)", "Sandy Loam"]  # Supported soils
 
-HECTARE_PER_ACRE = 1 / 2.47105 # Conversion factor
+HECTARE_PER_ACRE = 1 / 2.47105  # Conversion factor
 
 fertilizer_data = {
     "Rice": {
@@ -23,18 +24,19 @@ fertilizer_data = {
         "Alluvial": 200, "Clay": 180, "Loamy": 190,
         "Red": 210, "Black (Regur)": 185, "Sandy Loam": 230
     }
-} # Fertilizer (kg/ha) data
+}  # Fertilizer (kg/ha)
 
 crop_soil_compatibility = {
     "Rice": ["Alluvial", "Clay", "Loamy"],
     "Jowar": ["Red", "Black (Regur)", "Loamy"],
     "Wheat": ["Alluvial", "Loamy", "Clay"],
     "Oats": ["Loamy", "Alluvial", "Sandy Loam"]
-} # Crop-soil compatibility
+}  # Crop-soil compatibility
 
-farmers_df = pd.read_csv("government_farmers.csv") # farmer records by government (genuine)
-dealers_df = pd.read_csv("government_dealers.csv") # dealer records by government (genuine)
-relations_df = pd.read_csv("dealer_farmer_relationships.csv") # dealer–farmer relationships (might be forged)
+# Government data (trusted)
+farmers_df = pd.read_csv("government_farmers.csv")           # farmer_id, aadhar_no, village, land_size_acres, kharif_crop, rabi_crop, soil_type, ...
+dealers_df = pd.read_csv("government_dealers.csv")           # dealer_id, dealer_name, village, license_active, ...
+relations_df = pd.read_csv("dealer_farmer_relationships.csv")  # dealer_id, farmer_id, claimed_fertiliser_qty_kg, relationship_status, max_allowed_txns_per_year, ...
 
 
 def find_farmer(farmer_id):
@@ -42,10 +44,12 @@ def find_farmer(farmer_id):
     rec = farmers_df[farmers_df["farmer_id"].astype(str).str.strip() == farmer_id] 
     return None if rec.empty else rec.iloc[0]
 
+
 def find_dealer(dealer_id):
     dealer_id = str(dealer_id).strip()
     rec = dealers_df[dealers_df["dealer_id"].astype(str).str.strip() == dealer_id]
     return None if rec.empty else rec.iloc[0]
+
 
 def get_relationship(dealer_id, farmer_id):
     rel = relations_df[
@@ -53,6 +57,7 @@ def get_relationship(dealer_id, farmer_id):
         (relations_df["farmer_id"] == farmer_id)
     ]
     return None if rel.empty else rel.iloc[-1]
+
 
 def get_farmer_crop(farmer_row):
     kharif = str(farmer_row["kharif_crop"]).strip().lower()
@@ -175,14 +180,23 @@ def decision(score):
 
 
 def evaluate_risk(input_farmer):
-
+    """
+    input_farmer should contain:
+    {
+        "farmer_id": str,
+        "Dealer_ID": str,
+        "Crop": str,        # from UI
+        "village": str,     # from UI (optional for now)
+        "land_size": float  # from UI (optional, not yet used in calc)
+    }
+    """
     total_score = 0
     reasons = []
 
     dealer_id = input_farmer["Dealer_ID"]
     input_crop = input_farmer["Crop"]
 
-    farmer = find_farmer(input_farmer["Aadhaar"])
+    farmer = find_farmer(input_farmer["farmer_id"])
     dealer = find_dealer(dealer_id)
 
     # Identity
@@ -194,15 +208,17 @@ def evaluate_risk(input_farmer):
         return {
             "Decision": decision(total_score),
             "Risk_Score": total_score,
+            "Expected_Fertilizer_kg": None,
+            "Claimed_Fertilizer_kg": None,
             "Reasons": " | ".join(reasons)
         }
 
-    # Crop OR logic
+    # Crop OR logic (from govt data)
     crop, s, r = get_farmer_crop(farmer)
     total_score += s
     reasons += r
 
-    # User input vs govt
+    # User input vs govt crops
     s, r = crop_match_risk(input_crop, farmer)
     total_score += s
     reasons += r
@@ -214,7 +230,7 @@ def evaluate_risk(input_farmer):
     total_score += s
     reasons += r
 
-    # Location match
+    # Location match (govt farmer village vs dealer village)
     s, r = location_risk(farmer["village"], dealer["village"])
     total_score += s
     reasons += r
@@ -223,10 +239,12 @@ def evaluate_risk(input_farmer):
     rel = get_relationship(dealer_id, farmer["farmer_id"])
     if rel is None:
         total_score += 50
-        reasons.append("No recorded dealer–farmer relationship")
+        reasons.append("Dealer not authorised for this farmer")
         return {
             "Decision": decision(total_score),
             "Risk_Score": total_score,
+            "Expected_Fertilizer_kg": None,
+            "Claimed_Fertilizer_kg": None,
             "Reasons": " | ".join(reasons)
         }
 
@@ -249,6 +267,3 @@ def evaluate_risk(input_farmer):
         "Claimed_Fertilizer_kg": claimed,
         "Reasons": " | ".join(reasons)
     }
-
-
-
