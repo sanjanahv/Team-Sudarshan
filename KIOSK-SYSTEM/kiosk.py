@@ -98,3 +98,4 @@ if st.session_state.df is not None:
                     st.warning(f"Village mismatch: DB has '{row[village_col]}'")
                 if not crop_match:
                     st.warning(f"Crop mismatch: DB has '{row[crop_col]}'")
+
