@@ -11,11 +11,18 @@ st.markdown("---")
 st.subheader("🔍 Enter Farmer & Dealer Details")
 
 with st.form("verify_form"):
-    farmer_id_input = st.text_input("Farmer ID*", placeholder="Enter exact farmer ID")
-    dealer_id_input = st.text_input("Dealer ID*", placeholder="Enter dealer ID")
-    village_input = st.text_input("Village*", placeholder="Enter village name")
-    crop_input = st.text_input("Crop Type*", placeholder="Enter crop name (e.g. Rice)")
-    land_input = st.number_input("Land Size (acres)", min_value=0.0, value=1.0, step=0.1)
+    # Create two columns for better layout
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        farmer_id_input = st.text_input("Farmer ID*", placeholder="Enter exact farmer ID")
+        dealer_id_input = st.text_input("Dealer ID*", placeholder="Enter dealer ID")
+        village_input = st.text_input("Village*", placeholder="Enter village name")
+    
+    with col2:
+        crop_input = st.text_input("Crop Type*", placeholder="Enter crop name (e.g. Rice)")
+        soil_type_input = st.text_input("Soil Type*", placeholder="Enter soil type (e.g. Loamy, Sandy, Clay)")
+        land_input = st.number_input("Land Size (acres)", min_value=0.0, value=1.0, step=0.1)
 
     submitted = st.form_submit_button("Evaluate Risk")
 
@@ -24,8 +31,9 @@ if submitted:
     did = dealer_id_input.strip()
     vil = village_input.strip()
     cr = crop_input.strip()
+    soil = soil_type_input.strip()
 
-    if fid == "" or did == "" or vil == "" or cr == "":
+    if fid == "" or did == "" or vil == "" or cr == "" or soil == "":
         st.error("Please fill all required fields.")
     else:
         # Build input packet for backend
@@ -34,7 +42,8 @@ if submitted:
             "Dealer_ID": did,
             "village": vil,
             "land_size": land_input,
-            "Crop": cr.capitalize()  # match "Rice", "Wheat", etc.
+            "Crop": cr.capitalize(),  # match "Rice", "Wheat", etc.
+            "Soil_Type": soil.capitalize()  # Add soil type to the input
         }
 
         result = evaluate_risk(input_farmer)
@@ -42,15 +51,33 @@ if submitted:
         st.markdown("---")
         st.subheader("🧠 Risk Evaluation Result")
 
-        st.metric("Decision", result["Decision"])
-        st.metric("Risk Score", result["Risk_Score"])
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Decision", result["Decision"])
+        with col2:
+            st.metric("Risk Score", result["Risk_Score"])
+
+        # Display soil type information if available
+        if "Soil_Type" in input_farmer:
+            st.info(f"**Soil Type:** {input_farmer['Soil_Type']}")
 
         if result.get("Expected_Fertilizer_kg") is not None:
-            col1, col2 = st.columns(2)
-            with col1:
+            col3, col4 = st.columns(2)
+            with col3:
                 st.metric("Expected Fertilizer (kg)", result["Expected_Fertilizer_kg"])
-            with col2:
+            with col4:
                 st.metric("Claimed Fertilizer (kg)", result["Claimed_Fertilizer_kg"])
+
+        st.markdown("### 📝 Reasons")
+        st.write(result["Reasons"] or "No specific issues detected.")
+
+        # Display all input parameters in an expandable section
+        with st.expander("📋 View All Input Parameters"):
+            params_table = {
+                "Parameter": ["Farmer ID", "Dealer ID", "Village", "Crop", "Soil Type", "Land Size"],
+                "Value": [fid, did, vil, cr.capitalize(), soil.capitalize(), f"{land_input} acres"]
+            }
+            st.table(params_table)
 
         st.markdown("### 📝 Reasons")
         st.write(result["Reasons"] or "No specific issues detected.")
