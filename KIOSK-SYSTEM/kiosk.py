@@ -69,9 +69,6 @@ if submitted:
         with col2:
             st.metric("Risk Score", result["Risk_Score"])
 
-        if "Soil_Type" in input_farmer:
-            st.info(f"**Soil Type:** {input_farmer['Soil_Type']}")
-
         if result.get("Expected_Fertilizer_kg") is not None:
             col3, col4 = st.columns(2)
             with col3:
@@ -90,5 +87,5 @@ if submitted:
             st.table(params_table)
 
         st.markdown("### 📝 Reasons")
-        st.write(result["Reasons"] or "No specific issues detected.")
+        
 
