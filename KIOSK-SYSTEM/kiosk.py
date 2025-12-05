@@ -20,8 +20,20 @@ with st.form("verify_form"):
         village_input = st.text_input("Village*", placeholder="Enter village name")
     
     with col2:
-        crop_input = st.text_input("Crop Type*", placeholder="Enter crop name (e.g. Rice)")
-        soil_type_input = st.text_input("Soil Type*", placeholder="Enter soil type (e.g. Loamy, Sandy, Clay)")
+        # 🔽 DROPDOWN FOR CROP TYPE
+        crop_input = st.selectbox(
+            "Crop Type*",
+            ["", "Jowar", "Rice", "Wheat", "Oats", "Paddy"],
+            index=0
+        )
+
+        # 🔽 DROPDOWN FOR SOIL TYPE
+        soil_type_input = st.selectbox(
+            "Soil Type*",
+            ["", "Alluvial", "Clay", "Loamy", "Red", "Black (Regur)", "Sandy Loam"],
+            index=0
+        )
+
         land_input = st.number_input("Land Size (acres)", min_value=0.0, value=1.0, step=0.1)
 
     submitted = st.form_submit_button("Evaluate Risk")
@@ -42,8 +54,8 @@ if submitted:
             "Dealer_ID": did,
             "village": vil,
             "land_size": land_input,
-            "Crop": cr.capitalize(),  # match "Rice", "Wheat", etc.
-            "Soil_Type": soil.capitalize()  # Add soil type to the input
+            "Crop": cr,  # using dropdown exact text
+            "Soil_Type": soil
         }
 
         result = evaluate_risk(input_farmer)
@@ -57,7 +69,6 @@ if submitted:
         with col2:
             st.metric("Risk Score", result["Risk_Score"])
 
-        # Display soil type information if available
         if "Soil_Type" in input_farmer:
             st.info(f"**Soil Type:** {input_farmer['Soil_Type']}")
 
@@ -71,13 +82,13 @@ if submitted:
         st.markdown("### 📝 Reasons")
         st.write(result["Reasons"] or "No specific issues detected.")
 
-        # Display all input parameters in an expandable section
         with st.expander("📋 View All Input Parameters"):
             params_table = {
                 "Parameter": ["Farmer ID", "Dealer ID", "Village", "Crop", "Soil Type", "Land Size"],
-                "Value": [fid, did, vil, cr.capitalize(), soil.capitalize(), f"{land_input} acres"]
+                "Value": [fid, did, vil, cr, soil, f"{land_input} acres"]
             }
             st.table(params_table)
 
         st.markdown("### 📝 Reasons")
         st.write(result["Reasons"] or "No specific issues detected.")
+
