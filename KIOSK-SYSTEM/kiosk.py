@@ -23,7 +23,7 @@ with st.form("verify_form"):
         # 🔽 DROPDOWN FOR CROP TYPE
         crop_input = st.selectbox(
             "Crop Type*",
-            ["", "Jowar", "Rice", "Wheat", "Oats", "Paddy"],
+            ["", "Jowar", "Rice", "Wheat", "Oats"],
             index=0
         )
 
