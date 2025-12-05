@@ -86,6 +86,6 @@ if submitted:
             }
             st.table(params_table)
 
-        st.markdown("### 📝 Reasons")
+     
         
 
