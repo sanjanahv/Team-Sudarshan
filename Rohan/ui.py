@@ -12,14 +12,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-st.markdown("""
-<style>
-    .trust-good {background-color: #d4edda;color: #155724;padding: 15px;border-radius: 5px;border-left: 5px solid #28a745;margin: 10px 0;}
-    .trust-medium {background-color: #fff3cd;color: #856404;padding: 15px;border-radius: 5px;border-left: 5px solid #ffc107;margin: 10px 0;}
-    .trust-bad {background-color: #f8d7da;color: #721c24;padding: 15px;border-radius: 5px;border-left: 5px solid #dc3545;margin: 10px 0;}
-</style>
-""", unsafe_allow_html=True)
-
 def load_data(file):
     if file is not None:
         try:
@@ -40,22 +32,20 @@ def load_data(file):
 
 def create_sample_datasets():
     np.random.seed(42)
-    n_farmers = 100
-    n_dealers = 20
     
-    villages = ['Rampur', 'Keshavpur', 'GreenVillage', 'RedSoil']
+    villages = ['Rampur Village', 'Keshavpur', 'GreenVillage']
     
     farmers_df = pd.DataFrame({
-        'farmer_id': [f'FAR{i:06d}' for i in range(1, n_farmers+1)],
-        'village': np.random.choice(villages, n_farmers),
-        'land_size_acres': np.random.uniform(0.5, 20, n_farmers).round(2),
-        'kharif_crop': np.random.choice(['Paddy', 'Jowar'], n_farmers),
-        'phone_no': ['9' + str(np.random.randint(100000000, 999999999)).zfill(9) for _ in range(n_farmers)]
+        'farmer_id': [f'FAR{i:06d}' for i in range(1, 101)],
+        'village': np.random.choice(villages, 100),
+        'land_size_acres': np.round(np.random.uniform(0.5, 20, 100), 2),
+        'kharif_crop': np.random.choice(['Paddy', 'Jowar'], 100),
+        'phone_no': ['9' + str(np.random.randint(100000000, 999999999)).zfill(9) for _ in range(100)]
     })
     
     dealers_df = pd.DataFrame({
-        'dealer_id': [f'DEA{i:04d}' for i in range(1, n_dealers+1)],
-        'village': np.random.choice(villages, n_dealers)
+        'dealer_id': [f'DEA{i:04d}' for i in range(1, 21)],
+        'village': np.random.choice(villages, 20)
     })
     
     transactions_df = pd.DataFrame({
@@ -69,109 +59,135 @@ def create_sample_datasets():
     return farmers_df, dealers_df, transactions_df
 
 def detect_fraud_patterns(farmers_df, transactions_df):
-    results = {'high_risk': [], 'warnings': []}
+    results = {'high_risk': [], 'warnings': [], 'stats': {}}
     
-    if 'land_size_acres' in farmers_df.columns and 'claimed_fertiliser_qty_kg' in transactions_df.columns:
-        merged = transactions_df.merge(farmers_df, on='farmer_id', how='left')
+    try:
+        merged = pd.merge(transactions_df, farmers_df, on='farmer_id', how='left')
         
-        if not merged.empty and 'land_size_acres' in merged.columns:
+        if not merged.empty and 'land_size_acres' in merged.columns and 'claimed_fertiliser_qty_kg' in merged.columns:
             merged['qty_per_acre'] = merged['claimed_fertiliser_qty_kg'] / merged['land_size_acres']
-            high_risk = merged[merged['qty_per_acre'] > 1500]
-            results['high_risk'] = high_risk[['farmer_id', 'dealer_id', 'claimed_fertiliser_qty_kg', 'land_size_acres', 'qty_per_acre']].head(10).to_dict('records')
-    
-    if 'phone_no' in farmers_df.columns:
-        phone_counts = farmers_df['phone_no'].value_counts()
-        duplicate_phones = phone_counts[phone_counts > 1]
-        if not duplicate_phones.empty:
-            results['warnings'] = farmers_df[farmers_df['phone_no'].isin(duplicate_phones.index)]['farmer_id'].tolist()
+            high_risk = merged[merged['qty_per_acre'] > 1500][['farmer_id', 'dealer_id', 'claimed_fertiliser_qty_kg', 'land_size_acres', 'qty_per_acre', 'village']].head(10)
+            results['high_risk'] = high_risk.to_dict('records')
+            
+            results['stats'] = {
+                'total_high_risk': len(high_risk),
+                'avg_qty_per_acre': merged['qty_per_acre'].mean().round(1),
+                'max_qty_per_acre': merged['qty_per_acre'].max().round(1)
+            }
+        
+        if 'phone_no' in farmers_df.columns:
+            phone_counts = farmers_df['phone_no'].value_counts()
+            duplicate_phones = phone_counts[phone_counts > 1]
+            results['warnings'] = duplicate_phones.head().to_dict()
+            
+    except Exception as e:
+        st.error(f"Analysis error: {str(e)}")
     
     return results
 
-st.title("🛡️ AgriGuard: Subsidy Fraud Detection")
+st.title("🛡️ AgriGuard: Subsidy Fraud Detection Dashboard")
 
 with st.sidebar:
     st.header("📂 Upload Datasets")
-    farmers_file = st.file_uploader("government_farmers.csv", type=['csv'])
-    dealers_file = st.file_uploader("government_dealers.csv", type=['csv']) 
-    relationships_file = st.file_uploader("dealer_farmer_relationships.csv", type=['csv'])
+    farmers_file = st.file_uploader("1. government_farmers.csv", type=['csv'])
+    dealers_file = st.file_uploader("2. government_dealers.csv", type=['csv']) 
+    relationships_file = st.file_uploader("3. dealer_farmer_relationships.csv", type=['csv'])
     
-    use_sample = st.checkbox("Use Sample Data", value=True)
+    use_sample = st.checkbox("✅ Use Sample Data (Recommended)", value=True)
 
 if use_sample:
     farmers_df, dealers_df, transactions_df = create_sample_datasets()
-    st.sidebar.success("✅ Using sample data")
+    st.sidebar.success("✅ Sample data loaded")
+    st.sidebar.info("💡 Click 'Verify Farmer' below to test")
 else:
     farmers_df = load_data(farmers_file)
-    dealers_df = load_data(dealers_file) 
+    dealers_df = load_data(dealers_file)
     transactions_df = load_data(relationships_file)
     
-    if farmers_df is None or dealers_df is None or transactions_df is None:
-        st.warning("Please upload all 3 CSV files")
+    if any(df is None for df in [farmers_df, dealers_df, transactions_df]):
+        st.warning("❌ Please upload all 3 CSV files or use sample data")
         st.stop()
-
-st.success(f"✅ Loaded: {len(farmers_df)} farmers, {len(dealers_df)} dealers, {len(transactions_df)} relationships")
 
 col1, col2, col3 = st.columns(3)
 with col1:
-    st.metric("Farmers", len(farmers_df))
+    st.metric("👨‍🌾 Farmers", f"{len(farmers_df):,}")
 with col2: 
-    st.metric("Dealers", len(dealers_df))
+    st.metric("🏪 Dealers", f"{len(dealers_df):,}")
 with col3:
-    st.metric("Relationships", len(transactions_df))
+    st.metric("🤝 Relationships", f"{len(transactions_df):,}")
 
 fraud_results = detect_fraud_patterns(farmers_df, transactions_df)
 
-st.subheader("🚨 High Risk Transactions (Qty > 1500kg/acre)")
-if fraud_results['high_risk']:
-    high_risk_df = pd.DataFrame(fraud_results['high_risk'])
-    st.dataframe(high_risk_df, use_container_width=True)
-    
-    fig = px.scatter(high_risk_df, x='land_size_acres', y='qty_per_acre', 
-                    size='claimed_fertiliser_qty_kg',
-                    title="High Risk: Quantity per Acre vs Land Size",
-                    color='qty_per_acre',
-                    color_continuous_scale='Reds')
-    st.plotly_chart(fig, use_container_width=True)
-else:
-    st.info("No high-risk transactions detected")
+st.markdown("---")
 
-st.subheader("⚠️ Suspicious Patterns")
-col1, col2 = st.columns(2)
+col1, col2 = st.columns([2, 1])
 
 with col1:
-    if fraud_results['warnings']:
-        st.error(f"📞 Duplicate phones: {len(fraud_results['warnings'])} farmers")
-        st.write(farmers_df[farmers_df['farmer_id'].isin(fraud_results['warnings'])]['phone_no'].value_counts().head())
+    st.subheader("🚨 High Risk Transactions")
+    if fraud_results.get('high_risk'):
+        high_risk_df = pd.DataFrame(fraud_results['high_risk'])
+        st.dataframe(high_risk_df, use_container_width=True, height=300)
     else:
-        st.success("✅ No duplicate phone numbers")
+        st.info("✅ No high-risk transactions (>1500kg/acre)")
 
 with col2:
-    village_match = sum((dealers_df[dealers_df['dealer_id'].isin(transactions_df['dealer_id'])]['village'] 
-                        == farmers_df[farmers_df['farmer_id'].isin(transactions_df['farmer_id'])]['village']).sum())
-    st.info(f"🏘️ Local relationships: Good data quality")
+    st.subheader("📊 Key Metrics")
+    if 'stats' in fraud_results:
+        st.metric("High Risk Cases", fraud_results['stats'].get('total_high_risk', 0))
+        st.metric("Avg Qty/Acre", f"{fraud_results['stats'].get('avg_qty_per_acre', 0)} kg")
+        st.metric("Max Qty/Acre", f"{fraud_results['stats'].get('max_qty_per_acre', 0)} kg")
 
-with st.sidebar.form("verify_farmer"):
-    farmer_id = st.text_input("Enter Farmer ID to verify")
-    if st.form_submit_button("Verify"):
-        if farmer_id in farmers_df['farmer_id'].values:
-            farmer_row = farmers_df[farmers_df['farmer_id'] == farmer_id].iloc[0]
-            farmer_tx = transactions_df[transactions_df['farmer_id'] == farmer_id]
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                st.metric("Land Size", f"{farmer_row['land_size_acres']:.1f} acres")
-                st.metric("Village", farmer_row['village'])
-                st.metric("Total Claims", len(farmer_tx))
-            
-            with col2:
+st.markdown("---")
+
+st.subheader("🔍 Geo Analysis - Dealer-Farmer Village Match")
+try:
+    merged_geo = pd.merge(transactions_df, farmers_df[['farmer_id', 'village']], on='farmer_id')
+    merged_geo = pd.merge(merged_geo, dealers_df[['dealer_id', 'village']], on='dealer_id', suffixes=['_farmer', '_dealer'])
+    
+    village_match = (merged_geo['village_farmer'] == merged_geo['village_dealer']).mean() * 100
+    st.metric("Local Dealer Match", f"{village_match:.1f}%")
+    
+    fig = px.histogram(merged_geo, x='village_farmer', color='village_farmer',
+                      title="Farmer Village Distribution", 
+                      category_orders={'village_farmer': sorted(merged_geo['village_farmer'].unique())})
+    st.plotly_chart(fig, use_container_width=True)
+except:
+    st.info("✅ Geo analysis ready - upload dealer village data for full analysis")
+
+st.markdown("---")
+
+st.subheader("👤 Verify Specific Farmer")
+with st.columns(1)[0]:
+    col1, col2 = st.columns(2)
+    with col1:
+        farmer_id = st.text_input("Enter Farmer ID", placeholder="FAR000001")
+    with col2:
+        if st.button("🔍 Verify Farmer"):
+            if farmer_id in farmers_df['farmer_id'].values:
+                farmer_row = farmers_df[farmers_df['farmer_id'] == farmer_id].iloc[0]
+                farmer_tx = transactions_df[transactions_df['farmer_id'] == farmer_id]
+                
+                c1, c2, c3 = st.columns(3)
+                with c1:
+                    st.metric("🌾 Village", farmer_row['village'])
+                    st.metric("📏 Land", f"{farmer_row['land_size_acres']:.1f} acres")
+                with c2:
+                    st.metric("🌱 Kharif Crop", farmer_row['kharif_crop'])
+                    st.metric("📞 Phone", farmer_row['phone_no'][:4] + "****")
+                with c3:
+                    st.metric("Claims", len(farmer_tx))
+                    if len(farmer_tx) > 0:
+                        total_qty = farmer_tx['claimed_fertiliser_qty_kg'].sum()
+                        avg_per_acre = total_qty / farmer_row['land_size_acres']
+                        color = "normal" if avg_per_acre < 1500 else "inverse"
+                        st.metric("Qty/Acre", f"{avg_per_acre:.0f} kg", delta_color=color)
+                
                 if len(farmer_tx) > 0:
-                    avg_qty_per_acre = farmer_tx['claimed_fertiliser_qty_kg'].sum() / farmer_row['land_size_acres']
-                    color = "normal" if avg_qty_per_acre < 1500 else "inverse"
-                    st.metric("Avg Qty/Acre", f"{avg_qty_per_acre:.0f} kg", delta_color=color)
-            
-            if len(farmer_tx) > 0:
-                st.dataframe(farmer_tx[['dealer_id', 'claimed_fertiliser_qty_kg', 'date']].head(), use_container_width=True)
+                    st.dataframe(farmer_tx[['dealer_id', 'claimed_fertiliser_qty_kg']].head(), use_container_width=True)
+            else:
+                st.error("❌ Farmer ID not found")
         else:
-            st.error("❌ Farmer ID not found")
+            st.info("👆 Enter Farmer ID above and click Verify")
 
-st.caption("🌾 AgriGuard - Real-time Subsidy Fraud Detection")
+st.markdown("---")
+st.caption("🌾 AgriGuard v3.0 | Real-time Subsidy Fraud Detection | Compatible: farmer_id, dealer_id, land_size_acres")
