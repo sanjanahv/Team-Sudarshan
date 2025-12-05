@@ -17,7 +17,7 @@ with st.form("verify_form"):
     with col1:
         farmer_id_input = st.text_input("Farmer ID*", placeholder="Enter exact farmer ID")
         dealer_id_input = st.text_input("Dealer ID*", placeholder="Enter dealer ID")
-        village_input = st.text_input("Village*", placeholder="Enter village name")
+        village_input = st.text_input("Farmer's Village*", placeholder="Enter village name")
     
     with col2:
         # 🔽 DROPDOWN FOR CROP TYPE
@@ -70,11 +70,63 @@ if submitted:
             st.metric("Risk Score", result["Risk_Score"])
 
         if result.get("Expected_Fertilizer_kg") is not None:
-            col3, col4 = st.columns(2)
+            # Display fertilizer comparison if available
+            st.markdown("### 🌱 Fertilizer Analysis")
+            
+            col3, col4, col5 = st.columns(3)
             with col3:
-                st.metric("Expected Fertilizer (kg)", result["Expected_Fertilizer_kg"])
+                st.metric(
+                    "Expected Fertilizer",
+                    f"{result['Expected_Fertilizer_kg']} kg",
+                    help="Calculated based on crop type, soil, and land size"
+                )
             with col4:
-                st.metric("Claimed Fertilizer (kg)", result["Claimed_Fertilizer_kg"])
+                st.metric(
+                    "Claimed Fertilizer",
+                    f"{result['Claimed_Fertilizer_kg']} kg",
+                    help="Fertilizer amount claimed by dealer"
+                )
+            with col5:
+                diff = result["Fertilizer_Difference_kg"]
+                overclaim = result["Fertilizer_Overclaim_Percent"]
+                if diff > 0:
+                    st.metric(
+                        "Overclaim",
+                        f"{diff} kg",
+                        f"{overclaim}%",
+                        delta_color="inverse",
+                        help="Percentage over expected requirement"
+                    )
+                elif diff < 0:
+                    st.metric(
+                        "Underclaim",
+                        f"{abs(diff)} kg",
+                        f"{abs(overclaim)}%",
+                        delta_color="normal",
+                        help="Percentage under expected requirement"
+                    )
+                else:
+                    st.metric(
+                        "Perfect Match",
+                        "0 kg",
+                        "0%",
+                        help="Claim matches expected exactly"
+                    )
+            
+            # Add a visual progress bar for overclaim percentage
+            if diff != 0:
+                st.markdown("#### 📊 Fertilizer Claim Analysis")
+                max_overclaim = 50  # Maximum to show on scale
+                overclaim_percent = min(abs(overclaim), max_overclaim)
+                
+                if overclaim > 0:
+                    st.progress(overclaim_percent / 100)
+                    st.caption(f"⚠️ Claim is {overclaim}% higher than expected")
+                    if overclaim > 30:
+                        st.warning("High overclaim detected - potential fraud risk")
+                elif overclaim < 0:
+                    st.progress(abs(overclaim) / 100)
+                    st.caption(f"📉 Claim is {abs(overclaim)}% lower than expected")
 
         st.markdown("### 📝 Reasons")
         st.write(result["Reasons"] or "No specific issues detected.")
@@ -85,7 +137,4 @@ if submitted:
                 "Value": [fid, did, vil, cr, soil, f"{land_input} acres"]
             }
             st.table(params_table)
-
-     
-        
 
