@@ -40,13 +40,13 @@ relations_df = pd.read_csv("dealer_farmer_relationships.csv")  # dealer_id, farm
 
 
 def find_farmer(farmer_id):
-    farmer_id = str(farmer_id).strip() 
+    farmer_id = str(farmer_id).strip() # farmer_id as string
     rec = farmers_df[farmers_df["farmer_id"].astype(str).str.strip() == farmer_id] 
     return None if rec.empty else rec.iloc[0]
 
 
 def find_dealer(dealer_id):
-    dealer_id = str(dealer_id).strip()
+    dealer_id = str(dealer_id).strip() # dealer_id as string
     rec = dealers_df[dealers_df["dealer_id"].astype(str).str.strip() == dealer_id]
     return None if rec.empty else rec.iloc[0]
 
@@ -54,7 +54,7 @@ def find_dealer(dealer_id):
 def get_relationship(dealer_id, farmer_id):
     rel = relations_df[
         (relations_df["dealer_id"] == dealer_id) &
-        (relations_df["farmer_id"] == farmer_id)
+        (relations_df["farmer_id"] == farmer_id) # Exact match on both IDs
     ]
     return None if rel.empty else rel.iloc[-1]
 
@@ -63,7 +63,7 @@ def get_farmer_crop(farmer_row):
     kharif = str(farmer_row["kharif_crop"]).strip().lower()
     rabi = str(farmer_row["rabi_crop"]).strip().lower()
 
-    if kharif and kharif != "nan":
+    if kharif and kharif != "nan": #seasonal crop available
         return kharif.capitalize(), 0, []
 
     if rabi and rabi != "nan":
@@ -73,7 +73,7 @@ def get_farmer_crop(farmer_row):
 
 
 def crop_match_risk(input_crop, farmer_row):
-    entered = input_crop.strip().lower()
+    entered = input_crop.strip().lower() # user input crop
 
     kharif = str(farmer_row["kharif_crop"]).strip().lower()
     rabi = str(farmer_row["rabi_crop"]).strip().lower()
@@ -93,15 +93,15 @@ def identity_risk(farmer, dealer):
     score = 0
     reasons = []
 
-    if farmer is None:
+    if farmer is None: # farmer not found
         score += 60
         reasons.append("Farmer not in government registry")
 
-    if dealer is None:
+    if dealer is None: # dealer not found
         score += 80
         reasons.append("Dealer not in government registry")
     else:
-        if dealer["license_active"] == False:
+        if dealer["license_active"] == False: # dealer license inactive
             score += 40
             reasons.append("Dealer license inactive")
 
